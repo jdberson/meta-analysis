@@ -1,0 +1,735 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+
+``` {r  CLEAN_CONSOLE,                                                          include=FALSE}
+
+rm(list=ls())  # clean the Environment
+shell("cls")   # clean the Console
+
+```
+
+
+``` {r  LIBRARIES,                                                              include=FALSE}
+
+library(broom)
+# library(cowplot)
+# library(ggplot2)
+# library(ggpubr)
+# library(knitr)
+# library(microbiome)
+library(multcompView)
+# library(RColorBrewer)
+# library(tidyverse)
+# library(writexl)
+
+library(dplyr)
+library(metafor)
+library(readxl)
+library(tidyverse)
+library(wesanderson)
+
+```
+
+
+``` {r  IMPORT_DATA_FROM_LAUG2021,                                              echo=FALSE, include=FALSE}
+# Importing the raw data Lina Adonay Urrea-Galeano and getting values to create an effect size with
+
+df <- read_excel("~/Chapter 5 - Methods Meta-analysis/Ch5 - Analysis/meta-analysis/ESM_Dataset4_GrowthHeight.xlsx")
+
+# There are pseudoreps and reps in the dataset - this first step averages all the pseuodoreps
+df_grouped_X <- group_by(df, Beetle_treatment, Plant_Species, Site)
+df_grouped <- summarise(df_grouped_X, average.height = mean(Net_growth_height, na.rm = TRUE))
+
+
+# Now create summary statistics for the reps
+df_grouped2 <- summarise(df_grouped, height.mean = mean(average.height), height.sd = sd(average.height))
+
+write.csv(df_grouped, file = "ESM_Dataset4_pseudoreps.csv")
+write.csv(df_grouped2, file = "ESM_Dataset4_reps.csv")
+
+```
+
+``` {r  IMPORT_DATA_FROM_SLADE2016,                                              echo=FALSE, include=FALSE}
+# Importing the raw data from Slade & Roslin 2016 and getting values to create an effect size with
+
+df <- read_excel("~/Chapter 5 - Methods Meta-analysis/Ch5 - Analysis/meta-analysis/slade_2016.xlsx")
+
+wes_colours <- wes_palettes$Zissou1 # prepping the colours for later on
+
+df_grouped_X <- group_by(df, treatment, chamber)
+df_grouped <- summarise(df_grouped_X, mean.weight = mean(grass_wet_weight, na.rm = TRUE), sd.weight = sd(grass_wet_weight, na.rm = TRUE))
+write.csv(df_grouped, file = "slade_2016_summary.csv")
+
+
+df$chamber <- factor(df$chamber, 
+                        levels=c("C", 
+                                 "H", 
+                                 "Control")
+                    )
+
+df$treatment <- factor(df$treatment, 
+                        levels=c("N",
+                                 "F",
+                                 "GL", 
+                                 "GLF",
+                                 "GS",
+                                 "GLGS")
+                    )
+
+
+df <- filter(df, !(chamber == "Control"))
+df <- filter(df, !(treatment == "GS" | treatment == "GLGS"))
+
+
+Warming treatment  Geotrupes stercorarius  Aphodius fossor
+
+model1 <- lm(formula = grass_wet_weight ~ chamber, data = df)
+model1.table <- tidy(model1)
+model1.table
+
+model1.table3 <- tidy(anova(model1))
+model1.table3
+
+p <-
+  ggplot(data=df, aes(x=treatment, y=grass_wet_weight, fill = chamber)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  theme_minimal() +
+  #scale_fill_manual(values=c('#999999','#E69F00'))
+  scale_fill_manual(values=c(wes_colours[1],wes_colours[5]))
+p
+
+
+
+```
+
+
+``` {r  IMPORT_DATA_FROM_MANNING2017,                                              echo=FALSE, include=FALSE}
+# Importing the raw data from Manning et al 2017 and getting values to create an effect size with
+
+df <- read_csv("~/Chapter 5 - Methods Meta-analysis/Ch5 - Analysis/meta-analysis/manning_2017.csv")
+colnames(df)
+
+df_grouped_X <- group_by(df, spp_pres)
+df_grouped <- summarise(df_grouped_X, mean.shoot.weight = mean(grass.growth, na.rm = TRUE), sd.shoot.weight = sd(grass.growth, na.rm = TRUE))
+#write.csv(df_grouped, file = "manning_2017_summary.csv")
+
+
+df$Diversity <- as.factor(df$Diversity)
+
+
+ggplot(df, aes(x=Diversity, y=grass.growth, col=dung)) +
+  geom_point(size = 3, position="dodge") +
+  scale_color_manual(values=c('#000000', '#D3D3D3')) +
+  theme_classic()
+
+
+#df2 <- filter(df, !(dung == "pertubed"))
+df2 <- filter(df, !(dung == "control"))
+
+# analysis of variance
+anova <- aov(grass.growth ~ Diversity, data = df2)
+# Tukey's test
+tukey <- TukeyHSD(anova)
+# compact letter display
+cld <- multcompLetters4(anova, tukey)
+# table with factors and 3rd quantile
+dt <- group_by(df2, Diversity) %>%
+  summarise(w=mean(grass.growth), sd = sd(grass.growth)) %>%
+  arrange(desc(w))
+# extracting the compact letter display and adding to the Tk table
+cld <- as.data.frame.list(cld$Diversity)
+dt$cld <- cld$Letters
+
+
+
+p5 <- 
+  ggplot(df2, 
+         aes(x=Diversity, 
+             y=grass.growth)) +
+  geom_boxplot(aes(fill=dung)) +
+  theme_classic() +
+  geom_text(data = dt, 
+          aes(label = cld, 
+              y = w + sd), 
+              vjust = -0.5)
+p5
+
+
+
+```
+
+
+``` {r  IMPORT_DATA_FROM_SLADE2017,                                              echo=FALSE, include=FALSE}
+# Importing the raw data from Slade et al 2017 and getting values to create an effect size with
+
+df <- read_excel("~/Chapter 5 - Methods Meta-analysis/Ch5 - Analysis/meta-analysis/slade_2017.xlsx")
+
+#df2 <- filter(df, !(Replicate == "Soil"))       # remove the -dung-beetles treatments
+df2 <- df
+
+#####   Grass grown in pots   #####
+df_grouped_X <- group_by(df2, Replicate, Watering, Diversity, Treatment, Abundance, Density)
+df_grouped <- summarise(df_grouped_X, mean.shoot.weight = mean(Grass.pots, na.rm = TRUE), sd.shoot.weight = sd(Grass.pots, na.rm = TRUE))
+
+df3 <-
+df %>% count(Replicate, Watering, Diversity, Treatment, Density, sort = TRUE)
+
+df_joined <- left_join(df_grouped, df3)
+
+#write.csv(df_joined, file = "slade_2017_summary_pots.csv")
+
+#####   Grass grown in mesocosms   #####
+df_grouped <- summarise(df_grouped_X, mean.shoot.weight = mean(Grass.meso, na.rm = TRUE), sd.shoot.weight = sd(Grass.meso, na.rm = TRUE))
+
+df_joined <- left_join(df_grouped, df3)
+
+#write.csv(df_joined, file = "slade_2017_summary_mesocosms.csv")
+
+
+df_pots <- read_csv("~/Chapter 5 - Methods Meta-analysis/Ch5 - Analysis/meta-analysis/slade_2017_summary_pots.csv")
+df_pots2 <- filter(df_pots, !(Watering == 2))       # remove the high watered treatments
+
+
+ggplot(df_pots2, aes(x=combined, y=mean.shoot.weight, col=Replicate2)) +
+  geom_point(size = 3, position="dodge") +
+  #scale_color_manual(values=c('#000000', '#D3D3D3')) +
+  theme_classic() +
+  labs(title = "Individual densities", 
+       x = "Treatment", 
+       y = "Shoot weight")
+
+ggplot(df_pots2, aes(x=Treatment, y=mean.shoot.weight, col=Replicate2)) +
+  geom_point(size = 3, position="dodge") +
+  #scale_color_manual(values=c('#000000', '#D3D3D3')) +
+  theme_classic() +
+  labs(title = "Combined densities", 
+       x = "Treatment", 
+       y = "Shoot weight")
+
+
+df_mesos <- read_csv("~/Chapter 5 - Methods Meta-analysis/Ch5 - Analysis/meta-analysis/slade_2017_summary_mesocosms.csv")
+df_mesos2 <- filter(df_mesos, !(Watering == 1))       # remove the high watered treatments
+
+
+ggplot(df_mesos2, aes(x=combined, y=mean.shoot.weight, col=Replicate2)) +
+  geom_point(size = 3, position="dodge") +
+  #scale_color_manual(values=c('#000000', '#D3D3D3')) +
+  theme_classic() +
+  labs(title = "Individual densities", 
+       x = "Treatment", 
+       y = "Shoot weight")
+
+ggplot(df_mesos2, aes(x=Treatment, y=mean.shoot.weight, col=Replicate2)) +
+  geom_point(size = 3, position="dodge") +
+  #scale_color_manual(values=c('#000000', '#D3D3D3')) +
+  theme_classic() +
+  labs(title = "Combined densities", 
+       x = "Treatment", 
+       y = "Shoot weight")
+
+
+
+```
+
+
+
+``` {r  EXAMPLE META-ANALYSIS                                                           echo=FALSE, include=FALSE}
+
+# Doing Meta-Analysis in R: A Hands-on Guide
+# Examples from Chapter 10
+# “Multilevel” Meta-Analysis
+# https://bookdown.org/MathiasHarrer/Doing_Meta_Analysis_in_R/multilevel-ma.html
+
+library(dmetar)
+data("Chernobyl")
+head(Chernobyl)
+
+# Rename columns for multi-level meta-analysis
+# data <- data %>%
+#  dplyr::rename(slab = ACCESSION_NUMBER)
+
+
+# Model Fitting
+full.model <- rma.mv(yi = z, 
+                     V = var.z, 
+                     slab = author,
+                     data = Chernobyl,
+                     random = ~ 1 | author/es.id, 
+                     test = "t", 
+                     method = "REML")
+
+summary(full.model)
+
+# First, have a look at the Variance Components. Here, we see the random-effects variances calculated for each level of our model. The first one, sigma^2.1, shows the level 3 between-cluster variance. In our example, this is equivalent to the between-study heterogeneity variance 
+# τ2 in a conventional meta-analysis (since clusters represent studies in our model).
+
+# The second variance component sigma^2.2 shows the variance within clusters (level 2). In the nlvls column, we see the number of groups on each level. Level 3 has 14 groups, equal to the K= 14 included studies. Together, these 14 studies contain 33 effect sizes, as shown in the second row.
+ 
+# Under Model Results, we see the estimate of our pooled effect, which is z = 0.52 (95%CI: 0.25–0.80). To facilitate the interpretation, it is advisable to transform the effect back to a normal correlation. This can be done using the convert_z2r function in the {esc} package:
+
+
+library(esc)
+convert_z2r(0.52)
+
+# We see that this leads to a correlation of approximately r ≈ 0.48. This can be considered large. There seems to be a substantial association between mutation rates and exposure to radiation from Chernobyl.
+ 
+# The Test for Heterogeneity in the output points at true effect size differences in our data ( p < 0.001). This result, however, is not very informative. We are more interested in the precise amount of heterogeneity variance captured by each level in our model. It would be good to know how much of the heterogeneity is due to differences within studies (level 2), and how much is caused by between-study differences (level 3).
+
+
+# Distribution of Variance Across Levels
+# We can answer this question by calculating a multilevel version of I2 (Cheung 2014). In conventional meta-analyses, I2 represents the amount of variation not attributable to sampling error (see Chapter 5.1.2; i.e. the between-study heterogeneity). In three-level models, this heterogeneity variance is split into two parts: one attributable to true effect size differences within clusters, and the other to between-cluster variation. Thus, there are two I2 values, quantifying the percentage of total variation associated with either level 2 or level 3.
+
+i2 <- var.comp(full.model)
+summary(i2)
+# In the output, we see the percentage of total variance attributable to each of the three levels. The sampling error variance on level 1 is very small, making up only roughly 1%. The value of I2 Level 2, the amount of heterogeneity variance within clusters, is much higher, totaling roughly 40%. The largest share, however, falls to level 3. Between-cluster (here: between-study) heterogeneity makes up I2 Level 3 = 59% of the total variation in our data.
+# Overall, this indicates that there is substantial between-study heterogeneity on the third level. Yet, we also see that a large proportion of the total variance, more than one third, can be explained by differences within studies.
+# It is also possible to visualize this distribution of the total variance. We only have to plug the var.comp output into the plot function.
+plot(i2)
+
+## Comparing Models
+# Fitting a three-level model only makes sense when it represents the variability in our data better than a two-level model. When we find that a two-level model provides a fit comparable to a three-level model, Occam’s razor should be applied: we favor the two-level model over the three-level model, since it is less complex, but explains our data just as well.
+# Fortunately, the {metafor} package makes it possible to compare our three-level model to one in which a level is removed. To do this, we use the rma.mv function again; but this time, set the variance component of one level to zero. This can be done by specifying the sigma2 parameter. We have to provide a vector with the generic form c(level 3, level 2). In this vector, we fill in 0 when a variance component should be set to zero, while using NA to indicate that a parameter should be estimated from the data.
+# In our example, it makes sense to check if nesting individual effect sizes in studies has improved our model. Thus, we fit a model in which the level 3 variance, representing the between-study heterogeneity, is set to zero. This is equal to fitting a simple random-effects model in which we assume that all effect sizes are independent (which we know they are not). Since level 3 is held constant at zero, the input for sigma2 is c(0, NA). This results in the following call to rma.mv, the output of which we save under the name l3.removed.
+
+l3.removed <- rma.mv(yi = z, 
+                     V = var.z, 
+                     slab = author,
+                     data = Chernobyl,
+                     random = ~ 1 | author/es.id, 
+                     test = "t", 
+                     method = "REML",
+                     sigma2 =  c(0, NA))
+
+summary(l3.removed)
+# In the output, we see that sigma^2.1 has been set to zero–just as intended. The overall effect has also changed. But is this result better than the one of the three-level model? To assess this, we can use the anova function to compare both models.
+
+anova(full.model, l3.removed)
+# We see that the Full (three-level) model, compared to the Reduced one with two levels, does indeed show a better fit. The Akaike (AIC) and Bayesian Information Criterion (BIC) are lower for this model, which indicates favorable performance. The likelihood ratio test (LRT) comparing both models is significant (χ21 = 16.1, p < 0.001), and thus points in the same direction. We can say that, although the three-level model introduces one additional parameter (i.e. it has 3 degrees of freedom instead of 2), this added complexity seems to be justified. Modeling of the nested data structure was probably a good idea, and has improved our estimate of the pooled effect.
+# However, please note that there are often good reasons to stick with a three-level structure–even when it does not provide a significantly better fit. In particular, it makes sense to keep a three-level model when we think that it is based on a solid theoretical rationale.
+# When our data contains studies with multiple effect sizes, for example, we know that these effects can not be independent. It thus makes sense to keep the nested model, since it more adequately represents how the data were “generated.” If the results of anova in our example had favored a two-level solution, we would have concluded that effects within studies were largely homogeneous. But we likely would have reported results of the three-level model anyway. This is because we know that a three-level model represents the data-generating process better.
+# The situation is somewhat different when the importance of the cluster variable is unclear. Imagine, for example, that clusters on level 3 represent different cultural regions in a three-level model. When we find that the phenomenon under study shows no variation between cultures, it is perfectly fine to drop the third level and use a two-level model instead.
+
+
+## Subgroup Analyses in Three-Level Models
+# Once our three-level model is set, it is also possible to assess putative moderators of the overall effect.Previously in this guide, we discovered that subgroup analyses can be expressed as a meta-regression model with a dummy-coded predictor. In a similar vein, we can add regression terms to a “multilevel” model, which leads to a three-level mixed-effects model
+# Categorical or continuous predictors can be specified in rma.mv using the mods argument. The argument requires a formula, starting with a tilde (~), and then the name of the predictor. Multiple meta-regression is also possible by providing more than one predictor (e.g. ~ var1 + var2).
+
+mod.model <- rma.mv(yi = z, V = var.z, 
+                    slab = author, data = Chernobyl,
+                    random = ~ 1 | author/es.id, 
+                    test = "t", method = "REML",
+                    mods = ~ radiation)
+
+summary(mod.model)
+
+# The website has a good description of how to write up the results
+
+
+# Fitting a CHE Model With Robust Variance Estimation
+
+library(clubSandwich)
+
+# constant sampling correlation assumption
+rho <- 0.6
+
+# constant sampling correlation working model
+V <- with(Chernobyl, 
+          impute_covariance_matrix(vi = var.z,
+                                   cluster = author,
+                                   r = rho))
+
+che.model <- rma.mv(z ~ 1 + radiation,
+                    V = V,
+                    random = ~ 1 | author/es.id,
+                    data = Chernobyl,
+                    sparse = TRUE)
+
+conf_int(che.model, 
+         vcov = "CR2")
+
+coef_test(che.model, 
+          vcov = "CR2")
+
+
+```
+
+
+
+``` {r  IMPORT_DATA                                                             echo=FALSE, include=FALSE}
+
+data <- read_excel("~/Chapter 5 - Methods Meta-analysis/Ch5 - Analysis/meta-analysis/meta_analysis_data.xlsx")
+
+
+data <- filter(data, PRACTICE == "DO")
+
+
+# Create effect size using:
+# Treatment mean (m1i), SD (sd1i) and n (n1i)
+# Control   mean (m2i), SD (sd2i) and n (n2i)
+# https://wviechtb.github.io/metafor/reference/escalc.html
+
+
+# data <- filter(data, STUDY == "Johnson et al., 2016")
+# data <- filter(data, TREATMENT == "dung+beetles")
+# data <- filter(data, CONTROL_TREATMENT == "Dung only")
+
+
+
+# Filter shoot/root/both
+
+
+# Set the class of columns
+data$AUTHOR <- as.factor(data$AUTHOR)
+data$YEAR <- as.factor(data$YEAR)
+data$REPORT_ID <- as.factor(data$REPORT_ID)
+data$PRACTICE <- as.factor(data$PRACTICE)
+data$ACCESSION_NUMBER <- as.factor(data$ACCESSION_NUMBER)
+data$DUNG_BEETLE_SPECIES <- as.factor(data$DUNG_BEETLE_SPECIES)
+data$FUNCTIONAL_GROUP <- as.factor(data$FUNCTIONAL_GROUP)
+data$INDIVIDUAL_DUNG_BEETLE_DRY_MASS_IN_MG <- as.numeric(data$INDIVIDUAL_DUNG_BEETLE_DRY_MASS_IN_MG, na.rm = TRUE)
+data$NUMBER_OF_BEETLES <- as.numeric(data$NUMBER_OF_BEETLES, na.rm = TRUE)
+data$TOTAL_BEETLE_WEIGHT_IN_MG <- as.numeric(data$TOTAL_BEETLE_WEIGHT_IN_MG, na.rm = TRUE)
+data$SPECIES_RICHNESS <- as.numeric(data$SPECIES_RICHNESS, na.rm = TRUE)
+data$PERCENTAGE_FEMALE_BEETLES <- as.numeric(data$PERCENTAGE_FEMALE_BEETLES, na.rm = TRUE)
+data$DAYS_OF_BEETLE_ACCESS <- as.numeric(data$DAYS_OF_BEETLE_ACCESS, na.rm = TRUE)
+data$BEETLES_CONFINED_TO_CAGE <- as.factor(data$BEETLES_CONFINED_TO_CAGE)
+data$SURFACE_AREA_CM_SQUARED <- as.numeric(data$SURFACE_AREA_CM_SQUARED, na.rm = TRUE)
+data$DUNG_QUANTITY_IN_GRAMS <- as.numeric(data$DUNG_QUANTITY_IN_GRAMS, na.rm = TRUE)
+data$GRAMS_DUNG_PER_CM_SQUARED <- as.numeric(data$GRAMS_DUNG_PER_CM_SQUARED, na.rm = TRUE)
+data$GRAMS_DUNG_PER_BEETLE <- as.numeric(data$GRAMS_DUNG_PER_BEETLE, na.rm = TRUE)
+data$DUNG_TYPE <- as.factor(data$DUNG_TYPE)
+data$DUNG_FROZEN_PRIOR_TO_ALIQUOTTING <- as.factor(data$DUNG_FROZEN_PRIOR_TO_ALIQUOTTING)
+data$DUNG_REMOVED_AFTER_BEETLE_ACTIVITY <- as.factor(data$DUNG_REMOVED_AFTER_BEETLE_ACTIVITY)
+data$PLANTS_GERMINATED_BEFORE_DUNG_ADDITION <- as.factor(data$PLANTS_GERMINATED_BEFORE_DUNG_ADDITION)
+data$PLANT_TYPE <- as.factor(data$PLANT_TYPE)
+data$PLANT_SPECIES <- as.factor(data$PLANT_SPECIES)
+data$CLADE <- as.factor(data$CLADE)
+data$DAYS_OF_PLANT_GROWTH <- as.numeric(data$DAYS_OF_PLANT_GROWTH, na.rm = TRUE)
+data$RESPONSE_AREA <- as.factor(data$RESPONSE_AREA)
+data$RESPONSE_MEASUREMENT <- as.factor(data$RESPONSE_MEASUREMENT)
+data$TREATMENT_N <- as.numeric(data$TREATMENT_N, na.rm = TRUE)
+data$TREATMENT_MEAN <- as.numeric(data$TREATMENT_MEAN, na.rm = TRUE)
+data$TREATMENT_SD <- as.numeric(data$TREATMENT_SD, na.rm = TRUE)
+data$TREATMENT_SE <- as.numeric(data$TREATMENT_SE, na.rm = TRUE)
+data$CONTROL_TREATMENT <- as.factor(data$CONTROL_TREATMENT)
+data$CONTROL_N <- as.numeric(data$CONTROL_N, na.rm = TRUE)
+data$CONTROL_MEAN <- as.numeric(data$CONTROL_MEAN, na.rm = TRUE)
+data$CONTROL_SD <- as.numeric(data$CONTROL_SD, na.rm = TRUE)
+data$CONTROL_SE <- as.numeric(data$CONTROL_SE, na.rm = TRUE)
+data$DATA_DEPENDENT_OR_INDEPENDENT <- as.factor(data$DATA_DEPENDENT_OR_INDEPENDENT)
+data$EXPERIMENT_SETTING <- as.factor(data$EXPERIMENT_SETTING)
+
+data$PLANTS_GERMINATED_BEFORE_DUNG_ADDITION <- factor(data$PLANTS_GERMINATED_BEFORE_DUNG_ADDITION, 
+                                                      levels=c("Y", "N"))
+
+data$CLADE <- factor(data$CLADE, 
+                          levels=c("Monocot", "Dicot", "Both"))
+
+# Calculate a standardized mean difference (yi) and corresponding sampling variance (vi)
+data1 <- escalc(measure="SMD", m1i=TREATMENT_MEAN, sd1i=TREATMENT_SD, n1i=TREATMENT_N,
+                              m2i=CONTROL_MEAN, sd2i=CONTROL_SD, n2i=CONTROL_N, 
+                              data=data, slab=paste(AUTHOR, YEAR, sep=", "))
+
+
+
+
+# Model Fitting
+full.model <- rma.mv(yi = yi,
+                     V = vi,
+                     slab = AUTHOR,
+                     data = data1,
+                     random = ~ 1 | AUTHOR/ACCESSION_NUMBER,
+                     test = "t",
+                     method = "REML")
+
+summary(full.model)
+
+# First, have a look at the Variance Components. Here, we see the random-effects variances calculated for each level of our model. The first one, sigma^2.1, shows the level 3 between-cluster variance. In our example, this is equivalent to the between-study heterogeneity variance τ2 in a conventional meta-analysis (since clusters represent studies in our model).
+
+# The second variance component sigma^2.2 shows the variance within clusters (level 2). In the nlvls column, we see the number of groups on each level. Level 3 has 12 groups, equal to the K= 12 included studies. Together, these 12 studies contain 26 effect sizes, as shown in the second row.
+ 
+# Under Model Results, we see the estimate of our pooled effect, which is z = 1.05 (95%CI: 0.44–1.66). To facilitate the interpretation, it is advisable to transform the effect back to a normal correlation. This can be done using the convert_z2r function in the {esc} package:
+
+library(esc)
+convert_z2r(1.05)
+
+# We see that this leads to a correlation of approximately r ≈ 0.78. 
+ 
+# The Test for Heterogeneity in the output points at true effect size differences in our data ( p < 0.001). This result, however, is not very informative. We are more interested in the precise amount of heterogeneity variance captured by each level in our model. It would be good to know how much of the heterogeneity is due to differences within studies (level 2), and how much is caused by between-study differences (level 3).
+
+## Distribution of Variance Across Levels
+# We can answer this question by calculating a multilevel version of I2 (Cheung 2014). In conventional meta-analyses, I2 represents the amount of variation not attributable to sampling error. In three-level models, this heterogeneity variance is split into two parts: one attributable to true effect size differences within clusters, and the other to between-cluster variation. Thus, there are two I2 values, quantifying the percentage of total variation associated with either level 2 or level 3.
+
+i2 <- var.comp(full.model)
+summary(i2)
+# In the output, we see the percentage of total variance attributable to each of the three levels. The sampling error variance on level 1 19%. The value of I2 Level 2, the amount of heterogeneity variance within clusters, is  higher, totaling 34%. The largest share, however, falls to level 3. Between-cluster (here: between-study) heterogeneity makes up I2 Level 3 = 47% of the total variation in our data.
+# Overall, this indicates that there is substantial between-study heterogeneity on the third level. Yet, we also see that a large proportion of the total variance, more than one third, can be explained by differences within studies.
+# It is also possible to visualize this distribution of the total variance. We only have to plug the var.comp output into the plot function.
+plot(i2)
+
+
+## Comparing Models
+# Fitting a three-level model only makes sense when it represents the variability in our data better than a two-level model. When we find that a two-level model provides a fit comparable to a three-level model, Occam’s razor should be applied: we favor the two-level model over the three-level model, since it is less complex, but explains our data just as well.
+# Fortunately, the {metafor} package makes it possible to compare our three-level model to one in which a level is removed. To do this, we use the rma.mv function again; but this time, set the variance component of one level to zero. This can be done by specifying the sigma2 parameter. We have to provide a vector with the generic form c(level 3, level 2). In this vector, we fill in 0 when a variance component should be set to zero, while using NA to indicate that a parameter should be estimated from the data.
+# In our example, it makes sense to check if nesting individual effect sizes in studies has improved our model. Thus, we fit a model in which the level 3 variance, representing the between-study heterogeneity, is set to zero. This is equal to fitting a simple random-effects model in which we assume that all effect sizes are independent (which we know they are not). Since level 3 is held constant at zero, the input for sigma2 is c(0, NA). This results in the following call to rma.mv, the output of which we save under the name l3.removed.
+
+l3.removed <- rma.mv(yi = yi, 
+                     V = vi, 
+                     slab = AUTHOR,
+                     data = data1,
+                     random = ~ 1 | AUTHOR/ACCESSION_NUMBER,
+                     test = "t", 
+                     method = "REML",
+                     sigma2 =  c(0, NA))
+
+summary(l3.removed)
+# In the output, we see that sigma^2.1 has been set to zero–just as intended. The overall effect has also changed. But is this result better than the one of the three-level model? To assess this, we can use the anova function to compare both models.
+
+anova(full.model, l3.removed)
+# We see that the Full (three-level) model, compared to the Reduced one with two levels, does indeed show a better fit. The Akaike (AIC) and Bayesian Information Criterion (BIC) are lower for this model, which indicates favorable performance. The likelihood ratio test (LRT) comparing both models is significant (χ21 = 4.3595, p = 0.04), and thus points in the same direction. We can say that, although the three-level model introduces one additional parameter (i.e. it has 3 degrees of freedom instead of 2), this added complexity seems to be justified. Modeling of the nested data structure was probably a good idea, and has improved our estimate of the pooled effect.
+# However, please note that there are often good reasons to stick with a three-level structure–even when it does not provide a significantly better fit. In particular, it makes sense to keep a three-level model when we think that it is based on a solid theoretical rationale.
+# [IMPORTNAT PART ->] When our data contains studies with multiple effect sizes, for example, we know that these effects can not be independent. It thus makes sense to keep the nested model, since it more adequately represents how the data were “generated.” If the results of anova in our example had favored a two-level solution, we would have concluded that effects within studies were largely homogeneous. But we likely would have reported results of the three-level model anyway. This is because we know that a three-level model represents the data-generating process better.
+# The situation is somewhat different when the importance of the cluster variable is unclear. Imagine, for example, that clusters on level 3 represent different cultural regions in a three-level model. When we find that the phenomenon under study shows no variation between cultures, it is perfectly fine to drop the third level and use a two-level model instead.
+
+
+
+## Subgroup Analyses in Three-Level Models
+# Once our three-level model is set, it is also possible to assess putative moderators of the overall effect.Previously in this guide, we discovered that subgroup analyses can be expressed as a meta-regression model with a dummy-coded predictor. In a similar vein, we can add regression terms to a “multilevel” model, which leads to a three-level mixed-effects model
+# Categorical or continuous predictors can be specified in rma.mv using the mods argument. The argument requires a formula, starting with a tilde (~), and then the name of the predictor. Multiple meta-regression is also possible by providing more than one predictor (e.g. ~ var1 + var2).
+
+full.model.mods <- rma.mv(yi = yi,
+                          V = vi,
+                          slab = AUTHOR,
+                          data = data1,
+                          random = ~ 1 | AUTHOR/ACCESSION_NUMBER,
+                          test = "t",
+                          method = "REML",
+                          mods = ~ PLANTS_GERMINATED_BEFORE_DUNG_ADDITION
+
+)
+
+summary(full.model.mods)
+
+# The first important output is the Test of Moderators. We see that F1,24 = 5.74, with p = 0.02. This means that there is a significant difference between the subgroups.
+# 
+# The first value, the intercept (intrcpt), shows the z value when plant WERE NOT established before dung addition (z = 1.998). The effect in the low and medium group can be obtained by adding their estimate to the one of the intercept. Thus, the effect when plant WERE established before dung addition is z = 1.9980 + -1.3382 = 0.6598.
+
+
+full.model.mods <- rma.mv(yi = yi,
+                          V = vi,
+                          slab = AUTHOR,
+                          data = data1,
+                          random = ~ 1 | AUTHOR/ACCESSION_NUMBER,
+                          test = "t",
+                          method = "REML",
+                          mods = ~ CLADE
+
+)
+
+summary(full.model.mods)
+
+# The first important output is the Test of Moderators. We see that F3,24 = 4.29, with p = 0.016. This means that there is a significant difference between the subgroups.
+# 
+# The first value, the intercept (intrcpt), shows the z value when the CLADE was both (z = 0.8847). The effect in the low and medium group can be obtained by adding their estimate to the one of the intercept. 
+# The effect when the CLADE was Dicot is z = 0.8847 + -0.8003 = 0.0844
+# The effect when the CLADE was Monocot is z = 0.8847 + 1.0518 = 1.9365
+# The effect when the CLADE was Mostly Monocot is z = 0.8847 + -0.3794 = 0.5053
+
+
+# forest plot
+forest(full.model, header="Author(s) and Year", mlab="")
+
+
+
+### set up 2x2 array for plotting
+# par(mfrow=c(2,2))
+ 
+### draw funnel plots
+funnel(full.model, main="Standard Error")
+# funnel(full.model, yaxis="vi", main="Sampling Variance")
+# funnel(full.model, yaxis="seinv", main="Inverse Standard Error")
+# funnel(full.model, yaxis="vinv", main="Inverse Sampling Variance")
+
+regtest(x = yi,
+        vi, 
+        #sei, 
+        #ni, 
+        #subset, 
+        data = full.model,
+        model="rma", 
+        predictor="sei", ret.fit=FALSE, digits, ...)
+
+
+### fit random-effects model
+res <- rma(yi, vi, data=data1, measure="SMD")
+
+funnel(res, main="Standard Error")
+
+
+### carry out trim-and-fill analysis
+taf <- trimfill(res)
+ 
+### draw funnel plot with missing studies filled in
+funnel(taf, legend=TRUE)
+
+#The pooled correlation based on the three-level meta-analytic model was r = 0.78 (95%CI: 0.44–1.66 p < 0.01). 
+#The estimated variance components were τ2 Level 3 = 0.5737 and τ2 Level 2 = 0.4145. 
+#This means that I2 Level 3 = 47.19% of the total variation can be attributed to between-cluster, and I2 Level 2 = 34.09% to within-cluster heterogeneity. 
+
+
+
+
+# funnel plot
+funnel(full.model)
+
+
+funnel.meta(full.model,
+            xlim = c(-0.5, 2),
+            studlab = TRUE)
+
+```
+
+For measure="SMD", the positive bias in the standardized mean difference (i.e., in a Cohen's d value) is automatically 
+corrected for within the function, yielding Hedges' g (Hedges, 1981).
+
+For measure="SMD", if the means and standard deviations are unknown for some studies, but the standardized mean differences 
+(Cohen's d values) are directly available (e.g., if they are reported in those studies), then these can be specified via argument 
+di. Also, if the t-statistics from an independent samples t-test is available for some studies (or the corresponding p-values, which 
+can be easily transformed into the t-statistics), one can specify those values via argument ti, which are then transformed into the 
+corresponding standardized mean differences within the function. See here for an illustration/discussion of this.
+
+The conversion of a p-value to the t-statistic shown above is only applicable if authors actually conducted an independent samples t-test (i.e., it is not appropriate if the p-value was based on a Mann–Whitney U test or some other non-parametric test). Also, the t-test must have been a Student's t-test (assuming equal population variances in the two groups) and not Welch's t-test (allowing for unequal variances).
+
+``` {r  IMPORT_DATA                                                             echo=FALSE, include=FALSE}
+
+### copy BCG vaccine meta-analysis data into 'dat'
+dat <- dat.bcg
+ 
+### calculate log risk ratios and corresponding sampling variances (and use
+### the 'slab' argument to store study labels as part of the data frame)
+dat <- escalc(measure="RR", ai=tpos, bi=tneg, ci=cpos, di=cneg, data=dat,
+              slab=paste(author, year, sep=", "))
+ 
+### fit random-effects model
+res <- rma(yi, vi, data=dat)
+res
+
+# forest plot
+forest(res)
+forest(res, addpred=TRUE, header=TRUE)                                          # Add headers
+print(forest(res, addpred=TRUE, header=TRUE))
+forest(res, addpred=TRUE, header=TRUE, xlim=c(-8,6))                            # Move the plot part to fill the space better
+forest(res, addpred=TRUE, header=TRUE, xlim=c(-8,6), atransf=exp)
+forest(res, addpred=TRUE, header=TRUE, xlim=c(-8,5), atransf=exp, at=log(c(.05, .25, 1, 4))) # Change from log risk ratio to risk ratio (This is apparently common)
+
+# funnel plot
+funnel(res)
+funnel(res, ylim=c(0,.8), las=1)                                                # y-axis labels rotated
+funnel(res, ylim=c(0,.8), las=1, digits=list(1L,1))                             # A sneaky way to change 0 to 0.0
+ 
+
+### forest plot with extra annotations
+forest(res, atransf=exp, at=log(c(.05, .25, 1, 4)), xlim=c(-16,6),
+       ilab=cbind(tpos, tneg, cpos, cneg), ilab.xpos=c(-9.5,-8,-6,-4.5), 
+       cex=.75, header="Author(s) and Year", mlab="")
+op <- par(cex=.75, font=2)
+text(c(-9.5,-8,-6,-4.5), 15, c("TB+", "TB-", "TB+", "TB-"))
+text(c(-8.75,-5.25),     16, c("Vaccinated", "Control"))
+par(op)
+ 
+### add text with Q-value, dfs, p-value, and I^2 statistic
+text(-16, -1, pos=4, cex=0.75, bquote(paste("RE Model (Q = ",
+     .(formatC(res$QE, digits=2, format="f")), ", df = ", .(res$k - res$p),
+     ", p = ", .(formatC(res$QEp, digits=2, format="f")), "; ", I^2, " = ",
+     .(formatC(res$I2, digits=1, format="f")), "%)")))
+
+```
+
+
+``` {r  IMPORT_DATA                                                             echo=FALSE, include=FALSE}
+
+# Load 'meta' package
+library(meta)
+library(dmetar)
+data(ThirdWave)
+glimpse(ThirdWave)
+
+m.gen <- metagen(TE = TE,
+                 seTE = seTE,
+                 studlab = Author,
+                 data = ThirdWave,
+                 sm = "SMD",
+                 fixed = FALSE,
+                 random = TRUE,
+                 method.tau = "REML",
+                 hakn = TRUE,
+                 title = "Third Wave Psychotherapies")
+
+
+# Produce funnel plot
+funnel.meta(m.gen,
+            xlim = c(-0.5, 2),
+            studlab = TRUE)
+# Add title
+title("Funnel Plot (Third Wave Psychotherapies)")
+
+```
+
+
+
+``` {r  IMPORT_DATA                                                             echo=FALSE, include=FALSE}
+
+wes_colours <- wes_palettes$Chevalier1 # prepping the colours for later on
+
+p4 <- 
+  ggplot(data = data1, aes(x=PLANTS_GERMINATED_BEFORE_DUNG_ADDITION, y=yi, col = CLADE)) +
+  geom_point(size = 4) +
+  theme_classic() +
+  scale_color_manual(values=c(wes_colours[1],
+                              wes_colours[3],
+                              wes_colours[4])) +
+  labs(x = "Plants germinated before dung added", 
+       y = "Effect size",
+       col="Plant\nclade") + 
+  theme(axis.title=element_text(size=20, hjust = 0.5), 
+        axis.text=element_text(size=12)
+        )
+p4
+
+
+```
+
+``` {r  IMPORT_DATA                                                             echo=FALSE, include=FALSE}
+
+wes_colours <- wes_palettes$Chevalier1 # prepping the colours for later on
+
+p5 <- 
+  ggplot(data = data1, aes(x=CLADE, y=yi, col = PLANTS_GERMINATED_BEFORE_DUNG_ADDITION)) +
+  geom_point(size = 4) +
+  #geom_point(size = 4) +
+  theme_classic() +
+  scale_color_manual(values=c(wes_colours[1],
+                              wes_colours[4])) +
+  labs(x = "Plant clade", 
+       y = "Effect size",
+       col="Plants\ngerminated\nbefore\ndung\naddition") + 
+  theme(axis.title=element_text(size=20, hjust = 0.5), 
+        axis.text=element_text(size=12)
+        )  
+p5
+
+
+```
+

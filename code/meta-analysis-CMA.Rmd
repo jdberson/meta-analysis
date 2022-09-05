@@ -1,0 +1,96 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+
+``` {r  CLEAN_CONSOLE,                                                          include=FALSE}
+
+rm(list=ls())  # clean the Environment
+shell("cls")   # clean the Console
+
+```
+
+
+``` {r  LIBRARIES,                                                              include=FALSE}
+
+library(broom)
+# library(cowplot)
+# library(ggplot2)
+# library(ggpubr)
+# library(knitr)
+# library(microbiome)
+library(multcompView)
+# library(RColorBrewer)
+# library(tidyverse)
+# library(writexl)
+
+library(dplyr)
+library(metafor)
+library(readxl)
+library(tidyverse)
+library(wesanderson)
+
+```
+
+
+``` {r  IMPORT_DATA                                                             echo=FALSE, include=FALSE}
+
+data <- read_excel("~/Chapter 5 - Methods Meta-analysis/Ch5 - Analysis/meta-analysis/meta_analysis_data_CMA.xlsx")
+
+# Set the class of columns
+data$AUTHOR <- as.factor(data$AUTHOR)
+data$YEAR <- as.factor(data$YEAR)
+data$REPORT_ID <- as.factor(data$REPORT_ID)
+data$ACCESSION_NUMBER <- as.factor(data$ACCESSION_NUMBER)
+data$DUNG_BEETLE_SPECIES <- as.factor(data$DUNG_BEETLE_SPECIES)
+data$INDIVIDUAL_DUNG_BEETLE_DRY_MASS_IN_MG <- as.numeric(data$INDIVIDUAL_DUNG_BEETLE_DRY_MASS_IN_MG, na.rm = TRUE)
+data$NUMBER_OF_BEETLES <- as.numeric(data$NUMBER_OF_BEETLES, na.rm = TRUE)
+data$TOTAL_BEETLE_WEIGHT_IN_MG <- as.numeric(data$TOTAL_BEETLE_WEIGHT_IN_MG, na.rm = TRUE)
+data$SPECIES_RICHNESS <- as.numeric(data$SPECIES_RICHNESS, na.rm = TRUE)
+data$PERCENTAGE_FEMALE_BEETLES <- as.numeric(data$PERCENTAGE_FEMALE_BEETLES, na.rm = TRUE)
+data$DAYS_OF_BEETLE_ACCESS <- as.numeric(data$DAYS_OF_BEETLE_ACCESS, na.rm = TRUE)
+data$BEETLES_CONFINED_TO_CAGE <- as.factor(data$BEETLES_CONFINED_TO_CAGE)
+data$SURFACE_AREA_CM_SQUARED <- as.numeric(data$SURFACE_AREA_CM_SQUARED, na.rm = TRUE)
+data$DUNG_QUANTITY_IN_GRAMS <- as.numeric(data$DUNG_QUANTITY_IN_GRAMS, na.rm = TRUE)
+data$GRAMS_DUNG_PER_CM_SQUARED <- as.numeric(data$GRAMS_DUNG_PER_CM_SQUARED, na.rm = TRUE)
+data$GRAMS_DUNG_PER_BEETLE <- as.numeric(data$GRAMS_DUNG_PER_BEETLE, na.rm = TRUE)
+data$DUNG_TYPE <- as.factor(data$DUNG_TYPE)
+data$DUNG_FROZEN_PRIOR_TO_ALIQUOTTING <- as.factor(data$DUNG_FROZEN_PRIOR_TO_ALIQUOTTING)
+data$DUNG_REMOVED_AFTER_BEETLE_ACTIVITY <- as.factor(data$DUNG_REMOVED_AFTER_BEETLE_ACTIVITY)
+data$PLANTS_GERMINATED_BEFORE_DUNG_ADDITION <- as.factor(data$PLANTS_GERMINATED_BEFORE_DUNG_ADDITION)
+data$PLANT_TYPE <- as.factor(data$PLANT_TYPE)
+data$PLANT_SPECIES <- as.factor(data$PLANT_SPECIES)
+data$CLADE <- as.factor(data$CLADE)
+data$DAYS_OF_PLANT_GROWTH <- as.numeric(data$DAYS_OF_PLANT_GROWTH, na.rm = TRUE)
+data$RESPONSE_AREA <- as.factor(data$RESPONSE_AREA)
+data$RESPONSE_MEASUREMENT <- as.factor(data$RESPONSE_MEASUREMENT)
+data$TREATMENT_N <- as.numeric(data$TREATMENT_N, na.rm = TRUE)
+data$TREATMENT_MEAN <- as.numeric(data$TREATMENT_MEAN, na.rm = TRUE)
+data$TREATMENT_SD <- as.numeric(data$TREATMENT_SD, na.rm = TRUE)
+data$TREATMENT_SE <- as.numeric(data$TREATMENT_SE, na.rm = TRUE)
+data$CONTROL_TREATMENT <- as.factor(data$CONTROL_TREATMENT)
+data$CONTROL_N <- as.numeric(data$CONTROL_N, na.rm = TRUE)
+data$CONTROL_MEAN <- as.numeric(data$CONTROL_MEAN, na.rm = TRUE)
+data$CONTROL_SD <- as.numeric(data$CONTROL_SD, na.rm = TRUE)
+data$CONTROL_SE <- as.numeric(data$CONTROL_SE, na.rm = TRUE)
+data$DATA_DEPENDENT_OR_INDEPENDENT <- as.factor(data$DATA_DEPENDENT_OR_INDEPENDENT)
+data$EXPERIMENT_SETTING <- as.factor(data$EXPERIMENT_SETTING)
+
+
+data1 <- escalc(measure="SMD", m1i=TREATMENT_MEAN, sd1i=TREATMENT_SD, n1i=TREATMENT_N,
+                              m2i=CONTROL_MEAN, sd2i=CONTROL_SD, n2i=CONTROL_N, 
+                              data=data, slab=paste(AUTHOR, YEAR, sep=", "))
+
+write.csv(data1, file = "meta_analysis_data_CMA_edited.csv")
+
+```
