@@ -239,12 +239,20 @@ rm(list=ls())  # clean the Environment
 
 ``` {r  IMPORT_DATA_AND_CALCULATE_EFFECT_SIZES                                  echo=FALSE, include=FALSE}
 
-data <- read_excel("data/meta_analysis_data.xlsx")
+data <- read_excel("data/meta_analysis_data.xlsx",
+                   na = c("", "NA"))
 
 
 # Isolate just the treatments comparing dung+beetles to dung_only (removing the dung_removed and soil_only treatments)
 data <- filter(data, TREATMENT == "dung+beetles", 
                      CONTROL_TREATMENT == "dung_only")   
+
+# DEMONSTRATION WITH USING across() WITH mutate()
+# data %>% 
+#   mutate(across(.cols = c(AUTHOR, REPORT_ID:FUNCTIONAL_GROUP), as.factor)) %>% View()
+#   mutate(NUMBER_OF_BEETLES = as.numeric(NUMBER_OF_BEETLES))
+
+  
 
 
 # Set the class of the columns
@@ -304,6 +312,7 @@ data1 <- escalc(measure="SMD", m1i=TREATMENT_MEAN, sd1i=TREATMENT_SD, n1i=TREATM
 colnames(data1)[which(names(data1) == "yi")] <- "effect_size"
 colnames(data1)[which(names(data1) == "vi")] <- "effect_size_variance"
 
+
 ```
 
 ``` {r  MODEL_FITTING                                                           echo=FALSE, include=FALSE}
@@ -326,6 +335,17 @@ full.model <- rma.mv(yi = effect_size,            # yi is the calculated effect 
                      method = "REML")             # The method used to estimate the model parameters
 
 summary(full.model)
+
+## ALTERNATIVE FULL MODEL
+full.model.alt <- rma.mv(yi = effect_size,            # yi is the calculated effect sizes
+                     V = effect_size_variance,    # V is the variance of the calculated effect sizes
+                     slab = AUTHOR,               # slab is the column containing the study labels
+                     data = data1,
+                     random = list(~ 1 | AUTHOR, ~ 1 |ACCESSION_NUMBER),
+                     test = "t",
+                     method = "REML")             # The method used to estimate the model parameters
+
+summary(full.model.alt)
 
 
 # First, have a look at the Variance Components. Here, we see the random-effects variances calculated for each level of our model. The first one, sigma^2.1, shows the level 3 between-cluster variance. In our example, this is equivalent to the between-study heterogeneity variance τ2 in a conventional meta-analysis (since clusters represent studies in our model).
