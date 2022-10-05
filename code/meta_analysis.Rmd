@@ -63,7 +63,8 @@ Firstly we conducted a systematic review following the PRISMA 2020 method (Page 
 #| echo: false
 #| out.width: '100%'
 
-include_graphics(here("figures/prisma_flow_diagram.png"))   # Insert the PRISMA Flow Diagram using knitr
+#include_graphics(here("figures/prisma_flow_diagram.png"))   # Insert the PRISMA Flow Diagram using knitr
+include_graphics("figures/prisma_flow_diagram.png")
 
 ```
 
@@ -112,6 +113,12 @@ data$GRAMS_DUNG_PER_CM_SQUARED <- data$DUNG_QUANTITY_IN_GRAMS / data$SURFACE_ARE
 # Calculate a variable for the grams of dung per beetle
 data$GRAMS_DUNG_PER_BEETLE <- data$DUNG_QUANTITY_IN_GRAMS / data$NUMBER_OF_BEETLES
 
+# #Alternative to above
+# data <- 
+#   data %>%
+#   mutate(GRAMS_DUNG_PER_CM_SQUARED = DUNG_QUANTITY_IN_GRAMS / SURFACE_AREA_CM_SQUARED,
+#          GRAMS_DUNG_PER_BEETLE = DUNG_QUANTITY_IN_GRAMS / SURFACE_AREA_CM_SQUARED)
+
 ```
 
 Our dataset features correlated, or dependent, outcomes within studies (Noble et al., 2017). This correlation can be due to:<br> 
@@ -122,12 +129,14 @@ For more information on non-dependent effect sizes see Nakagawa & Santos (2012),
 <br>
 We deal with the **shared control** aspect of our dataset before calculating the effect sizes.<br>
 <br>
-We now modify the control sample size (CONTROL_N) to account for those studies with shared controls (Bishop and Nagakawa, 2021).
+We now modify the control sample size (CONTROL_N) to account for those studies with shared controls (Bishop and Nagakawa, 2021). **I think the citation should be Higgins et al. (2019), you will need to check this. There are a few instances where Bishop and Nakagawa are cited where I think it should be the original study. I'd suggest for the paper / supp material to have an overall statement that R code was informed by / benefited from code provided Bishop and Nakagawa in their supp material, and then cite the relevant studies throughout.**
 To do this we divide the sample size of each control (CONTROL_N) by the number of shared controls within its study (SHAREDCONTROL_COUNT). 
 This creates a SHARED_CONTROL_N value which is then used (in escalc) to calculate the effect size for each outcome.
 
+**Jake's comment:** I think you need to remove the treatments/control treatments that aren't being used before doing the following calculation. If I replicate the below chunk but using data1 I get a different SHARED_CONTROL_N for some studies. I haven't tested it but there may be other effects on the effect size calculation by retaining these treatments. You could setup a separate data frame if planning on testing for a dung effect (i.e. dung_only vs soil_only).
+
 ```{r Dealing with shared controls}
-#| include: false
+#| include: true
 
 data <- data %>%
   group_by(STUDYID) %>%
@@ -137,6 +146,56 @@ data <- data %>%
 ```
 
 We then use measures of plant growth between 'dung+beetles' and 'dung only' treatments to calculate effect sizes. Effect sizes were calculated using a log transformed ratio of means, or log response ratio (lnRR) (Hedges et al., 1999). This is a usefull measurement as we can determine a percentage increase in plant growth. The metafor package was used to calculate the effect sizes (Viechtbauer 2010). For measure = "ROM", the log is taken of the ratio of means, which makes this outcome measure symmetric around 0 and yields a corresponding sampling distribution that is closer to normality (Viechtbauer 2010).<br> 
+
+**Jake's addition**
+
+I noticed in the comments in the next code chunk the dung_only in treatment and soil_only in control so I performed the following checks to explore the data a little more. The code chunk should be deleted.
+
+Some questions that came up:
+
+Was there a plan to compare dung_only vs soil_only (i.e. test for a dung effect)? 
+
+Not sure why the Miranda et al study has NA for treatment and response but is in the data?
+
+```{r eval=FALSE}
+
+data %>%
+  ungroup() %>%
+  distinct(TREATMENT)
+
+data %>%
+  filter(is.na(TREATMENT))
+
+data %>%
+  ungroup() %>%
+  distinct(CONTROL_TREATMENT)
+
+data %>%
+  ungroup() %>%
+  distinct(RESPONSE)
+
+data %>%
+  ungroup() %>%
+  filter(RESPONSE %in% c("NA_", "NA_NA"))
+
+data %>%
+  filter(!RESPONSE %in% c("NA_", "NA_NA")) %>%
+  select(ACCESSION_ID, RESPONSE, TREATMENT_MEAN) %>%
+  pivot_wider(names_from = RESPONSE, values_from = TREATMENT_MEAN) %>% View()
+  GGally::ggpairs(columns = c("shoot_weight", "root_weight", "total_weight", "shoot_height", "root_height", "total_height"))
+
+data %>%
+ filter(STUDYID == "Nervo et al.") %>%
+  select(STUDYID, MULTIPLE_ENDPOINT_CLUSTERID, TREATMENT_LABEL, TREATMENT, TREATMENT_MEAN, CONTROL_TREATMENT) %>%
+  arrange(MULTIPLE_ENDPOINT_CLUSTERID)
+
+data %>%
+  group_by(STUDYID) %>%
+  mutate(n_control = n_distinct(CONTROL_TREATMENT)) %>%
+  filter(n_control > 1) 
+
+```
+
 
 ```{r Calculate effect size}
 #| include: false
@@ -177,7 +236,7 @@ data1 %>%
 
 
 As the dataset also contains non-independence in the form of **Shared measurements** and **Within-study temporal correlation** we create a value called MULTIPLE_ENDPOINT_CLUSTERID.
-Whenever multiple plants traits were measured from the same plant at the same time, or when a single plant trait was measured from the same plant at different times, those outcomes received the same MULTIPLE_ENDPOINT_CLUSTERID. Sometimes studies had both Shared measurements and Within-study temporal correlation (e.g. Miranda et al., 1998).<br>
+Whenever multiple plant traits were measured from the same plant at the same time, or when a single plant trait was measured from the same plant at different times, those outcomes received the same MULTIPLE_ENDPOINT_CLUSTERID. Sometimes studies had both Shared measurements and Within-study temporal correlation (e.g. Miranda et al., 1998).<br>
 
 To deal with non-independence we use multi-level meta-analytic models with variance–covariance matrices.<br>
 We generate variance-covariance matrices based on a clustered variable, which was MULTIPLE_ENDPOINT_CLUSTERID.<br>
@@ -270,6 +329,8 @@ The low (0.25) and moderate (0.5) correlations have a similar *p*-value and AIC.
 
 **NOTE: I DIDN'T REALLY KNOW WHICH CORRELATION OPTION/VALUE TO GO WITH SO JUST PICKED 0.5 AS IT BASICALLY HAD THE JOINT-LOWEST AIC, IT'S WHAT OTHER PEOPLE DO AND IT'S THE DEFAULT CORRELATION VALUE IN THE PACKAGE. LET ME KNOW IF YOU THINK OTHERWISE**<br>
 
+**Jakes note:** I have no strong opinion here. I'm not sure about comparing the models. My suggestion would be to follow Bishop and Nakagawa and present the 0.5 correlation results in the text and a .75 (or 0.9) correlation results in the supplementary material, assuming the results are similar! Thinking some more about this, how correlated do you expect the variables (different responses/different time points) to be for the same studies?
+
 Therefore, the results of our null model are:
 
 ```{r Multi-level meta-analysis - null model}
@@ -285,11 +346,20 @@ We then quantify the total variance (heterogeneity) attributable to each of the 
 Here $I^{2}$ represents the amount of variation not attributable to sampling error. It is split into two parts; within clusters and between-cluster variation.<br>
 
 ```{r Testing the heterogeneity}
-#| echo: false
 
 i2_ml(model1)
 
 ############## NOTE: I'd like to extract values from this if possible, but I'm not sure how to
+
+# It's a bit unclear/trickier because the returned object is a named vector
+model1_i2 <- i2_ml(model1)
+str(model1_i2)
+names(model1_i2)
+
+# Extract components
+model1_i2["I2_Total"]
+model1_i2["I2_STUDYID"]
+model1_i2["I2_ACCESSION_ID"]
 
 ```
 
@@ -321,6 +391,75 @@ model1.estimate <- 1 - exp(model1$b[[1]])
 ################################################################################################################
 
 ```
+
+
+**Jake's note**: I went around and around on this one! A couple of things to note:  
+* Bishop and Nakagawa put the 'control' as m/sd/n1 in escalc and the treatment in m/sd/n2. The opposite of what is done here.  
+* They frame their results as the "yield **reduction**"  
+* See their Figure 1: a/b are on the lnRR scale, and show a negative effect size, c and d are on the 'response ratio' scale and show a positive effect size on this scale  
+* The below code chunk re-runs the DB analysis but with the order of control/treatment switched to match that of Bishop and Nakagawa  
+* My interpretation of the results is that yield is reduced by ~12% in the absence of dung beetles, essentially the same (though not sure why a little different??) to your result  
+* Perhaps that is the way to frame the result - i.e. we are testing the effect of beetles being excluded from dung. I'm not sure???  
+
+```{r}
+data3 <- escalc(measure="ROM",   # The effect size calculated will be log transformed ratio of means (metafor::escalc)
+                
+                m1i=CONTROL_MEAN,   # m1i = the control mean (e.g. dung_only or soil_only)    
+                sd1i=CONTROL_SD,   # sd1i = the control st.dev  
+                n1i=SHARED_CONTROL_N,   # n1i = the control sample size (here we used our modified control sample size)
+                
+                m2i=TREATMENT_MEAN,   # m2i = the treatment mean (e.g. dung+beetles or dung_only)
+                sd2i=TREATMENT_SD,   # sd2i = the treatment st.dev
+                n2i=TREATMENT_N,   # n2i = the treatment sample size
+                
+                data=data,
+                slab=paste(STUDYID, YEAR, sep=", "))
+
+# Rename the Effect Size (yi) and corresponding Sampling Variance (vi)columns to make them more intuitive to read 
+colnames(data3)[which(names(data3) == "yi")] <- "effect_size"   # The Effect Size column is now labelled 'effect_size'
+colnames(data3)[which(names(data3) == "vi")] <- "effect_size_variance"   # The Sampling Variance is now labelled 'effect_size_variance'
+
+# Calculate a standard error (sqrt(effect_size_variance)) and a precision value (1/standard error) (Bishop & Nakagawa, 2021)
+data3$se <- sqrt(data3$effect_size_variance)
+data3$precision <- 1/data3$se
+
+# Isolate just our treatments of interest 
+# We just want to compare dung+beetles treatments with dung_only controls
+data3 <- filter(data3, 
+                TREATMENT == "dung+beetles",   # Isolate the "dung+beetles" treatments from the TREATMENT column
+                CONTROL_TREATMENT == "dung_only")   # AND isolate the "dung_only+beetles" treatments from the CONTROL_TREATMENT column   
+
+# Filter out the studies that don't have effect sizes
+data3 <- 
+  data3 %>% 
+  drop_na(effect_size, effect_size_variance)   # Remove all studies that have 'NA' in the effect_size or effect_size_variance columns
+
+
+data3 <- data3[order(data3$STUDYID), ]
+
+variance.covariance.matrices_0.5_data3 <- 
+  make_VCV_matrix(data = data3,
+                  V = "effect_size_variance",
+                  cluster = "MULTIPLE_ENDPOINT_CLUSTERID",
+                  obs = "ACCESSION_ID",
+                  type = "vcv",
+                  rho = 0.5)   # Setting the assumed correlation value at 0.5
+is.positive.definite(variance.covariance.matrices_0.5_data3)
+
+model1_corr0.5_data3 <- rma.mv(yi = effect_size, 
+                         V = variance.covariance.matrices_0.5, 
+                         random = list(~1 | STUDYID,
+                                       ~1 | ACCESSION_ID),
+                         data = data3,
+                         method = "REML")
+summary(model1_corr0.5_data3)
+
+i2_ml(model1_corr0.5_data3)
+
+1 - exp(model1_corr0.5_data3$b[[1]])
+# 0.1177125
+```
+
 
 So overall, in the studies we assessed, beetles increased plant growth by `r (round(model1.estimate, 2)*100)`%.<br>
 
@@ -422,6 +561,17 @@ ggsave(filename = (here("figures/caterpillar_plot.png")),
 ```
 
 **NOTE: Here's my attempt at a caterpillar plot. I imagine that the caterpillar plot will go in powerpoint presentations so I thought I'd make one that is customisable. My one looks similar, however, the horizontal bars look different. I think this is because I have used effect size variance for each effect size, but I should be using confidence intervals. I'm not too sure of how to extract the confidence intervals though. It might not be worth pursuing though** (<https://wviechtb.github.io/metafor/reference/confint.rma.html>)
+
+**Jake's note:** The figure_caterpillar is a ggplot object so it should be customisable. Does that allow you to do what you need? See the below code chunk.
+
+```{r}
+
+figure_caterpillar + 
+  xlab("Can we customise this plot? Yes.")
+
+```
+
+
 
 ```{r Assigning confidence intervals for study outcomes}
 #| include: false
@@ -590,9 +740,85 @@ We tested moderators individually by adding them to our null model (model1), and
 **NOTE: These were all tested with an assumed correlation (rho) of 0.5. Also, I don't really know which of the models to go with or if any of the results are that meaningful. I've noted the points that look interesting to me, but I'm likely wrong**<br>
 
 
+**Jake's comments:**   
+* I think a key moderator that should be investigated is the response variable used  
+* Generally, models should be run using maximum likelihood (method = "ML") for significance testing, and restricted maximum likelihood for estimating model parameters (method = "REML")  
+* Not sure if the above applies when comparing models using AIC  
+* Is there a reason for fitting (and comparing) intercept and no intercept models?  The AIC is the same for these when fit to categorical variables. I'd suggest not removing the intercept for the continuous moderator models (but there may be a reason to do so that I'm not aware of)  
+* Try to avoid writing over objects by using different names (eg, you could use model2_FUNCTIONAL_GROUP instead of just model2)  
+* When copying and pasting the same code three or more times, it may be worthwhile to write a function. See https://r4ds.had.co.nz/many-models.html for a way to run lots of models and extract the results. Have a crack if you think it will help and we can discuss more if you get stuck (only if you think it is useful!)  
+
+I started to play with the RESPONSE moderator model. To be discussed:
+
+```{r}
+
+data1 %>%
+  distinct(RESPONSE)
+
+data %>%
+  ungroup() %>%
+  distinct(RESPONSE)
+
+# root height gets lost in the filtering. Can this be calculated from other data?
+# No - total_height and shoot_height found in separate studies
+data1 %>%
+  filter(RESPONSE %in%  c("total_height", "shoot_height"))%>%
+  drop_na(TREATMENT_MEAN) %>%
+  select(STUDYID, RESPONSE, TREATMENT_MEAN)
+
+# total_weight will be the sum of root_weight and shoot_weight. I don't think all three variables should be included if derived from the same study. Check this
+# All three are not included in the same study
+# Only Bang et al that have total_weight - could then be recalculated as root_weight?
+data1 %>%
+  filter(RESPONSE %in%  c("root_weight", "shoot_weight", "total_weight"))%>%
+  drop_na(TREATMENT_MEAN) %>%
+  select(STUDYID, RESPONSE, TREATMENT_MEAN) %>%
+  group_by(STUDYID) %>%
+  distinct(RESPONSE)
+
+
+# We should chat about the possible groupings for the response variables (above vs below ground, height vs weight). I feel this this is something we should consider carefully.
+
+# Null model
+model1_corr0.5_ML <- rma.mv(yi = effect_size, 
+                   V = variance.covariance.matrices_0.5, 
+                   random = list(~1 | STUDYID,
+                                 ~1 | ACCESSION_ID),
+                   data = data1,
+                   method = "ML")
+
+# Not sure why we are getting a warning here???
+model_RESPONSE_ML <- rma.mv(yi = effect_size, 
+                 V = variance.covariance.matrices_0.5,
+                 mods = ~RESPONSE - 1, 
+                 random = list(~1 | STUDYID, 
+                               ~1 | ACCESSION_ID), 
+                 data = data1,
+                 method = "ML")
+
+anova(model_RESPONSE_ML, model1_corr0.5_ML)
+
+
+model_RESPONSE_REML <- rma.mv(yi = effect_size, 
+                 V = variance.covariance.matrices_0.5,
+                 mods = ~RESPONSE - 1, 
+                 random = list(~1 | STUDYID, 
+                               ~1 | ACCESSION_ID), 
+                 data = data1,
+                 method = "REML")
+
+summary(model_RESPONSE_REML)
+
+
+
+```
+
+
 ## Beetle functional group
 
 Firstly, with no moderator
+
+**Jake's comment:** Is this the same as the above random effects only model? If yes, I wouldn't repeat it, unless needing to run using maximum likelihood.
 
 ```{r Beetle functional group - no moderator}
 #| echo: false
@@ -853,6 +1079,8 @@ PLANTS_GERMINATED_BEFORE_DUNG_ADDITION.plot
 
 # Numerical moderators:
 
+**Jake's comment:** Any idea what's happening with the outliers?
+
 ## Number of beetles
 
 Firstly, with no moderator
@@ -1093,7 +1321,7 @@ model3.res <- (mod_results(model3,
 | Model 2 - with a moderator                             | `r AIC(model2)` |
 | Model 3 - with a moderator (and the intercept removed) | `r AIC(model3)` |
 
-**NOTE: I've plotted model 3 below, but Model 1 has a lower AIC value which would mean it's a better fit? It seems like plant growth may be improving when 4 beetles are present?**
+**NOTE: I've plotted model 3 below, but Model 1 has a lower AIC value which would mean it's a better fit? It seems like plant growth may be improving when 4 beetle species are present?**
 
 Orchard plot - with a moderator (and the intercept removed)
 
@@ -1327,9 +1555,9 @@ Nakagawa & Lagisz (2016) give brief instructions on interpreting a funnel plot.
 #| warning: false
 
 
-png(file = (here("figures/funnel_plot.png")))
+#png(file = (here("figures/funnel_plot.png")))
 
-figure_funnel <-
+#figure_funnel <-
 funnel(model1,
        vi = variance.covariance.matrices_0.5,
        yaxis = "seinv",   # The measure of precision for the y-axis
@@ -1339,9 +1567,9 @@ funnel(model1,
        hlines = "lightgray",   # colour of the horizontal reference lines
        col = "black",   # specify point colour
        bg = "transparent")   # specify the background colour for the plot
-figure_funnel
+#figure_funnel
 
-dev.off()
+#dev.off()
 
 # This code chunk only seems to work on the first execution for some reason
 
@@ -1349,6 +1577,8 @@ dev.off()
 
 **NOTE: I might have to trim this down as it looks a bit weird, there seems to be no skew though**<br>
 **NOTE: This figure has been troublesome to knit**<br>
+
+**Jake's comment:** There seemed to be an issue with saving the figure as an object.
 
 As a second assessment of publication bias, we use Egger's regression (see Egger et al. (1997)), with the standard
 error, SE (sqrt(effect_size_variance)) as a moderator. A significant slope for SE indicates statistically significant funnel asymmetry after controlling for all other variables in the model (Bishop & Nakagawa, 2021).<br>
@@ -1454,6 +1684,8 @@ ggsave(filename = (here("figures/eggers_plot.png")),
 
 14 reports/studies were included in this meta-analysis, but there were an additional 10 reports/studies that lacked the full information needed to calculate a SMD (mean, SD & sample size).<br>
 
+**Jake's comment**: this seems easier than imputing the missing standard deviations. Note that there is a warning message here (and some of the models above) that studies with NAs were ommitted from model fitting. That could just be a generic warning, but it will be worth checking that there's nothing causing any of the data to be excluded.
+
 ``` {r}
 #| include: false
 
@@ -1483,7 +1715,15 @@ funnel(res)
 ## References:
 Bishop, J., & Nakagawa, S. (2021). Quantifying crop pollinator dependence and its heterogeneity using multi-level meta-analysis. Journal of Applied Ecology, 58(5), 1030–1042. https://doi.org/10.1111/1365-2664.13830<br>
 Dougherty, L. R., Skirrow, M. J. A., Jennions, M. D., & Simmons, L. W. (2022). Male alternative reproductive tactics and sperm competition: a meta-analysis. Biological Reviews, 97, 1365–1388. https://doi.org/10.1111/brv.12846<br>
-Hedges, L. V., Gurevitch, J., & Curtis., P. S. (2010). The meta‐analysis of response ratios in experimental ecology. Global Change Biology, 16(3), 1046–1056. https://doi.org/10.1890/0012-9658(1999)080[1150:TMAORR]2.0.CO;2<br>
+
+**Jake's comment**: I think this reference is incorrect:
+
+~~Hedges, L. V., Gurevitch, J., & Curtis., P. S. (2010). The meta‐analysis of response ratios in experimental ecology. Global Change Biology, 16(3), 1046–1056. https://doi.org/10.1890/0012-9658(1999)080[1150:TMAORR]2.0.CO;2<br>~~
+
+and that it should be:
+
+Hedges, L.V., Gurevitch, J. and Curtis, P.S. (1999), THE META-ANALYSIS OF RESPONSE RATIOS IN EXPERIMENTAL ECOLOGY. Ecology, 80: 1150-1156. https://doi.org/10.1890/0012-9658(1999)080[1150:TMAORR]2.0.CO;2
+
 Johnson, S. N., Lopaticki, G., Barnett, K., Facey, S. L., Powell, J. R., & Hartley, S. E. (2016). An insect ecosystem engineer alleviates drought stress in plants without increasing plant susceptibility to an above-ground herbivore. Functional Ecology, 30(6), 894–902. https://doi.org/10.1111/1365-2435.12582<br>
 Manning, P., Slade, E. M., Beynon, S. A., & Lewis, O. T. (2017). Effect of dung beetle species richness and chemical perturbation on multiple ecosystem functions. Ecological Entomology, 42(5), 577–586. https://doi.org/10.1111/een.12421<br>
 Miranda, C. H. B., Santos, J. C. C., & Bianchin, I. (1998). Contribuição de Onthophagus gazella à melhoria da fertilidade do solo pelo enterrio de massa fecal bovina fresca. Brazilian Journal of Animal Science, 27, 681–685.<br>
