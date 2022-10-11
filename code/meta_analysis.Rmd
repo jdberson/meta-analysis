@@ -188,6 +188,28 @@ data1 <- data1 %>%
   mutate(SHAREDCONTROL_COUNT = n_distinct(SHAREDCONTROL_CLUSTERID),   # Count the number of unique control groups within each study
          SHARED_CONTROL_N = CONTROL_N / SHAREDCONTROL_COUNT)   # Divide the sample size of each control (CONTROL_N) by the number of shared controls within its study
 
+
+## JAKE'S DEMO
+
+# data1 <-
+#   data %>%
+#   
+#   # Isolate the dung+beetles treatments with dung_only controls
+#   filter(TREATMENT == "dung+beetles",   # Isolate the "dung+beetles" treatments from the TREATMENT column
+#          CONTROL_TREATMENT == "dung_only") %>%  # AND isolate the "dung_only+beetles" treatments from the CONTROL_TREATMENT column   
+#   # Filter out the studies that don't have the required measurements to calculate an effect size
+#   drop_na(TREATMENT_N, 
+#           TREATMENT_MEAN, 
+#           TREATMENT_SD, 
+#           CONTROL_N, 
+#           CONTROL_MEAN,
+#           CONTROL_SD) %>%   # Remove all studies that have 'NA' recorded for any of the six measurements required to calculate an effect size
+#   group_by(STUDYID) %>%
+#   mutate(SHAREDCONTROL_COUNT = n_distinct(SHAREDCONTROL_CLUSTERID),   # Count the number of unique control groups within each study
+#          SHARED_CONTROL_N = CONTROL_N / SHAREDCONTROL_COUNT)   # Divide the sample size of each control (CONTROL_N) by the number of shared controls within its study
+
+
+
 # Calculate an Effect Size (yi) and corresponding Sampling Variance (vi)
 data1 <- escalc(measure="ROM",   # The effect size calculated will be log transformed ratio of means (metafor::escalc)
                 m1i=TREATMENT_MEAN,   # m1i = the treatment mean (e.g. dung+beetles or dung_only)
