@@ -1,5 +1,7 @@
 ---
-output: html_document
+output: 
+  html_document:
+    code_folding: hide
 editor_options: 
   chunk_output_type: console
   markdown: 
@@ -186,6 +188,8 @@ data1$precision <- 1/data1$se
 Now we look at the effect sizes for any outliers and remove them if need be.<br>
 <br>
 
+**Jake's note**: In the html doc this code is not visible and all you see is the statement about looking at outliers. I have put code folding in the yaml header which can allow the code to be included in the doc but only show if the reader chooses to expose it. I couldn't knit the doc to check but hopefully it works!
+
 ```{r Remove outlying effect sizes}
 #| include: false
 
@@ -214,6 +218,8 @@ We produce variance-covariance matrices with an assumed to have a correlation of
 We expect that when multiple plant traits were measured from the same plant at the same time (e.g. shoot weight and total weight), that the correlation will be high. When looking through the relevant studies, the effect of dung beetles on plant growth appears to vary through time, therefore, we assume when a single plant trait was measured from the same plant at different times that the correlation will be lower. As a compromise we select an rho of 0.5, which is a common assumption in meta-analyses (Dougherty et al., 2022) and the default value in the make_VCV_matrix function.<br>
 <br>
 **Note: Although I've just outlined why we chose an rho of 0.5, I'm tempted to ditch the rho of 0.5 and use a higher correlation value?  In Bishop & Nakagawa they used an rho of 0.5, but they looked at yield AND various aspects of faba bean pods, which would probably be less-correlated than just looking at different aspects of yield alone. When using a higher correlation value (0.9) the plant growth moderators then appear influential (not saying that in a p-hacking kind of way, but maybe an rho of 0.9 highlights that the plant measurements are genuinely highly correlated and that demonstrates it)**
+
+**Jake's note:** Not in the results you present here - in all three cases the plant response moderators are not significant, with relatively similar *P* values. 
 
 ```{r Assumed correlation within studies}
 #| include: false
@@ -2054,6 +2060,7 @@ Plants germinated before dung addition is slightly influential with assumed corr
 <br>
 <br>
 
+**Jake's note:** does the text here need updating? The *P* values are not significant.
 
 ## Publication bias
 
